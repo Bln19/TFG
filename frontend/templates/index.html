@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Subtitles</title>
+    <!-- añadimos los estilos css de la pagina -->
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #videoForm {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        #videoContainer {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #subtitlesContainer {
+            display: flex;
+            justify-content: center;
+        }
+
+        .subtitlesBox {
+            font-size: 20px;
+            color: #fff;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            margin: 10px;
+            max-width: 600px;
+            text-align: center;
+        }
+        .subtitlesBoxCorrected {
+            font-size: 20px;
+            color: #fff;
+            background-color: rgba(14, 69, 188, 0.7);
+            padding: 10px;
+            margin: 10px;
+            max-width: 600px;
+            text-align: center;
+        }
+
+        input, button {
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>TFG Correcci&oacute;n de subt&iacute;tulos con NLP</h1>
+    <form id="videoForm">
+        <label for="videoId">ID del Video de Youtube:</label>
+        <input type="text" id="videoId" name="videoId" required>
+        <button type="submit">Cargar Video</button>
+    </form>
+    <div id="videoContainer"></div>
+    <div id="subtitlesContainer">
+        <div>
+          <h2 style="text-align: center;">Subtítulos Originales</h2>
+          <div id="originalSubtitles" class="subtitlesBox"></div>
+        </div>
+        <div style="width: 40px;"></div>
+        <div>
+          <h2 style="text-align: center;">Subtítulos Corregidos</h2>
+          <div id="correctedSubtitles" class="subtitlesBoxCorrected"></div>
+        </div>
+      </div>
+
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+        let player;
+        let intervalId;
+
+        function onYouTubeIframeAPIReady() {
+            document.getElementById('videoForm').addEventListener('submit', function(event) {
+                event.preventDefault();
+                const videoId = document.getElementById('videoId').value;
+                loadVideo(videoId);
+            });
+        }
+        // leemos el video obteniendo el id del video container y con YT cargamos el id y el tamaño de vventana
+        // añadimos tambien los eventos de ready y change para capturarlos e iniciar o cambiar el tiempo para obtener los subtitulos
+        function loadVideo(videoId) {
+            const videoContainer = document.getElementById('videoContainer');
+            videoContainer.innerHTML = `<div id="player"></div>`;
+            player = new YT.Player('player', {
+                height: '400',
+                width: '640',
+                videoId: videoId,
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }
+
+        function onPlayerReady(event) {
+            fetchSubtitles(player.getVideoData().video_id);
+        }
+
+        function onPlayerStateChange(event) {
+            if (event.data === YT.PlayerState.PLAYING) {
+                startSubtitleStream();
+            } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
+                clearInterval(intervalId);
+            }
+        }
+
+        async function fetchSubtitles(videoId) {
+            const response = await fetch('/get_subtitles', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ video_id: videoId })
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                console.log("cargados!")
+            }
+        }
+
+        function startSubtitleStream() {
+            if (intervalId) {
+                clearInterval(intervalId);
+            }
+            // obtenemos el primer segmento nada más empezar
+            fetchSubtitleSegment(); 
+            intervalId = setInterval(fetchSubtitleSegment, 10000); // 10 seg
+        }
+
+        // función para obtener los subtitulos a partir de un tiempo inicial + 10 segundos (por ejemplo)
+        async function fetchSubtitleSegment() {
+            const currentTime = Math.floor(player.getCurrentTime());
+            const response = await fetch('/get_subtitle_segment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ start_time: currentTime, end_time: currentTime + 10 }) // 10 segundos
+            });
+            const data = await response.json();
+            displaySubtitles(data.original_segment, 'originalSubtitles');
+            displaySubtitles(data.corrected_segment, 'correctedSubtitles');
+        }
+
+        function displaySubtitles(segment, containerId) {
+            const subtitlesDiv = document.getElementById(containerId);
+            // eliminamos los subtitulos anteriores
+            subtitlesDiv.innerHTML = ''; 
+            segment.forEach(entry => {
+                const p = document.createElement('p');
+                p.textContent = entry.text;
+                subtitlesDiv.appendChild(p);
+            });
+        }
+    </script>
+</body>
+</html>
