@@ -141,7 +141,7 @@
             }
             // obtenemos el primer segmento nada más empezar
             fetchSubtitleSegment(); 
-            intervalId = setInterval(fetchSubtitleSegment, 10000); // 10 seg
+            intervalId = setInterval(fetchSubtitleSegment, 5000); // 5 seg
         }
 
         // función para obtener los subtitulos a partir de un tiempo inicial + 10 segundos (por ejemplo)
@@ -152,7 +152,7 @@
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ start_time: currentTime, end_time: currentTime + 10 }) // 10 segundos
+                body: JSON.stringify({ start_time: currentTime, end_time: currentTime + 8 }) // 8 segundos
             });
             const data = await response.json();
             displaySubtitles(data.original_segment, 'originalSubtitles');
